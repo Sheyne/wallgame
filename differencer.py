@@ -5,6 +5,7 @@ import cv2
 import asyncio
 from itertools import combinations
 from collections import namedtuple
+from math import sqrt
 
 def ceil_range(a, pad=10):
 	return int(ceil(a/pad) * pad)
@@ -66,7 +67,7 @@ def multi_masks(baseline, red, green, blue):
 	for channel, color in enumerate((blue, green, red)):
 		color = color.astype(numpy.int16)
 		diff = color.transpose(2,0,1)[channel] - baseline[channel]
-		diff[diff < 30] = 0
+		diff[diff < 20] = 0
 		yield compute_mask(diff.astype(numpy.uint8))
 
 def async(func):
@@ -206,10 +207,40 @@ def key_pressed(e):
 	global start
 	start = True
 
+def dist(a, b):
+	return sqrt(((b-a)**2).sum())
+
+def v(a):
+	try:
+		return numpy.array((a.x, a.y))
+	except:
+		return numpy.array(a)
+
+dragging = False
+def mouse_down(game, e):
+	global dragging
+	e = v(e)
+	for button in game.buttons:
+		b = v(button.coords)
+		if dist(b, e) < 30:
+			dragging = (button, e-b)
+			break
+
+def mouse_move(g, e):
+	if dragging:
+		e = v(e)
+		b, diff = dragging
+		b.coords = e - diff
+		b.update()
+
+def mouse_up(g, e):
+	global dragging
+	dragging = False
+
 async def startgame(game):
 	global clock
-	width = 60
-	height = 60
+	for button in game.buttons:
+		button.set_state(CameraButton.OFF)
 
 	while not start:
 		await asyncio.sleep(0.1)
@@ -217,6 +248,9 @@ async def startgame(game):
 	for x in range(5, 0, -1):
 		print(x)
 		await asyncio.sleep(1)
+
+	for button in game.buttons:
+		button.set_state(CameraButton.INVISIBLE)
 
 	for button in game.buttons:
 		await game.train(button)
@@ -243,6 +277,7 @@ async def startgame(game):
 
 
 from tkinter import *
+from functools import partial
 
 def async_tkinter_runloop(root):
 	root.should_quit = False
@@ -270,8 +305,12 @@ w = Canvas(master,
            height=canvas_height)
 w.config(background='black')
 w.pack()
-asyncio.ensure_future(startgame(Game(w)))
+game = Game(w)
+asyncio.ensure_future(startgame(game))
 master.bind("<Key>", key_pressed)
+master.bind("<Button-1>", partial(mouse_down, game))
+master.bind("<B1-Motion>", partial(mouse_move, game))
+master.bind("<ButtonRelease-1>", partial(mouse_up, game))
 async_tkinter_runloop(master)
 
 
