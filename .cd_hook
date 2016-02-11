@@ -1,0 +1,17 @@
+out=$(python << EndOfMessage
+
+prev = "$CD_HOOK_PREV_DIR"
+new = "$CD_HOOK_NEW_DIR"
+action = "$CD_HOOK_ACTION" == "ENTER"
+
+if action:
+	if new.startswith(prev):
+		print("workon wall_game")
+else:
+	if prev.startswith(new):
+		print("deactivate")
+
+
+EndOfMessage
+)
+$out
