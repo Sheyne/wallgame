@@ -33,12 +33,13 @@ def expand_slice(sl, fraction):
 	d = int((o/fraction - o)/2)
 	return slice(max(sl.start - d, 0), sl.stop + 2 * d)
 
+class FIND_RANGE_EXCEPTION(Exception): pass
 def find_range(a, most, bucket_size):
 	buckets = bucketize(a, bucket_size)
 	for i in intervals(len(buckets)):
 		if buckets[i].sum() > most:
 			return slice(i.start * bucket_size, i.stop * bucket_size)
-	return False
+	raise FIND_RANGE_EXCEPTION()
 
 def find_box(a, bucket_size=None, mosts=[0.5, 0.7, 0.95, 0.99, 0.99, 0.99, 0.99, 0.99], depth=0):
 	most = numpy.sum(a) * mosts[depth]
