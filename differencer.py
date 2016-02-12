@@ -68,7 +68,7 @@ def multi_masks(baseline, red, green, blue):
 	for channel, color in enumerate((blue, green, red)):
 		color = color.astype(numpy.int16)
 		diff = color.transpose(2,0,1)[channel] - baseline[channel]
-		diff[diff < 20] = 0
+		diff[diff < 40] = 0
 		yield compute_mask(diff.astype(numpy.uint8))
 
 def async(func):
@@ -79,7 +79,10 @@ class AsyncCamera():
 		self.camera = cv2.VideoCapture(*args, **kwd)
 
 	async def read(self, *args, **kwd):
-		return await asyncio.get_event_loop().run_in_executor(None, self.camera.read,*args, **kwd)
+		while True:
+			retval, image = await asyncio.get_event_loop().run_in_executor(None, self.camera.read,*args, **kwd)
+			if retval:
+				return image
 
 	async def release(self, *args, **kwd):
 		return await asyncio.get_event_loop().run_in_executor(None, self.camera.release,*args, **kwd)
@@ -173,16 +176,16 @@ class Game():
 
 	async def train(self, button):
 		await asyncio.sleep(0.3)
-		retval, baseline = await self.camera.read()
+		baseline = await self.camera.read()
 		button.train("#FF0000")
 		await asyncio.sleep(0.3)
-		retval, red = await self.camera.read()
+		red = await self.camera.read()
 		button.train("#00FF00")
 		await asyncio.sleep(0.3)
-		retval, green = await self.camera.read()
+		green = await self.camera.read()
 		button.train("#0000FF")
 		await asyncio.sleep(0.3)
-		retval, blue = await self.camera.read()
+		blue = await self.camera.read()
 		button.update()
 
 		def cpu_bound():
@@ -192,7 +195,7 @@ class Game():
 		await asyncio.get_event_loop().run_in_executor(None, cpu_bound)
 
 	async def take_image(self):
-		retval, image = await self.camera.read()
+		image = await self.camera.read()
 		image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 		# image = cv2.Canny(image, 170, 200)
 		self.images.append(image.astype(numpy.int16))
