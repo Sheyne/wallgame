@@ -6,6 +6,7 @@ import asyncio
 from itertools import combinations
 from collections import namedtuple
 from math import sqrt
+from time import time
 
 def ceil_range(a, pad=10):
 	return int(ceil(a/pad) * pad)
@@ -102,7 +103,7 @@ class CameraButton:
 			diff = compute_diff(first, last)
 			hit = diff > average_diff * 3
 
-			if clock % 15 == 0:
+			if main_window.clock % 15 == 0:
 				print(self.parent.index, "avg:", average_diff, "frame:", diff)
 			
 			if self.last_change > 7:
@@ -148,6 +149,8 @@ class CameraButton:
 
 	def press(self, on):
 		new_state = CameraButton.ON if on else CameraButton.OFF
+		if new_state == CameraButton.OFF:
+			return
 		if self.state != CameraButton.INVISIBLE:
 			self.set_state(new_state)
 
@@ -200,84 +203,8 @@ class Game():
 		while len(self.images) < self.image_backlog_size:
 			await self.take_image()
 
-start = False
-clock = 0
-
-def key_pressed(e):
-	global start
-	start = True
-
-def dist(a, b):
-	return sqrt(((b-a)**2).sum())
-
-def v(a):
-	try:
-		return numpy.array((a.x, a.y))
-	except:
-		return numpy.array(a)
-
-dragging = False
-def mouse_down(game, e):
-	global dragging
-	e = v(e)
-	for button in game.buttons:
-		b = v(button.coords)
-		if dist(b, e) < 30:
-			dragging = (button, e-b)
-			break
-
-def mouse_move(g, e):
-	if dragging:
-		e = v(e)
-		b, diff = dragging
-		b.coords = e - diff
-		b.update()
-
-def mouse_up(g, e):
-	global dragging
-	dragging = False
-
-async def startgame(game):
-	global clock
-	for button in game.buttons:
-		button.set_state(CameraButton.OFF)
-
-	while not start:
-		await asyncio.sleep(0.1)
-	print("Starting training in ")
-	for x in range(5, 0, -1):
-		print(x)
-		await asyncio.sleep(1)
-
-	for button in game.buttons:
-		button.set_state(CameraButton.INVISIBLE)
-
-	for button in game.buttons:
-		await game.train(button)
-
-	for button in game.buttons:
-		button.set_state(CameraButton.OFF)
-
-	await game.get_images()
-
-	while True:
-		out = game.images[-1].astype(numpy.uint8)
-		for button in game.buttons:
-			out[button.presser.mask] = 200
-		cv2.imshow("Stream", out)
-		
-		if clock % 15 == 0:
-			print(chr(27) + "[2J")
-		for button in game.buttons:
-			button.presser.check(game.images)
-
-		await asyncio.sleep(0.05)
-		await game.take_image()
-		clock += 1
-
 
 from tkinter import *
-from functools import partial
 
 def async_tkinter_runloop(root):
 	root.should_quit = False
@@ -297,21 +224,155 @@ def async_tkinter_runloop(root):
 
 
 
-master = Tk()
-canvas_width = 1500
-canvas_height = 940
-w = Canvas(master, 
-           width=canvas_width,
-           height=canvas_height)
-w.config(background='black')
-w.pack()
-game = Game(w)
-asyncio.ensure_future(startgame(game))
-master.bind("<Key>", key_pressed)
-master.bind("<Button-1>", partial(mouse_down, game))
-master.bind("<B1-Motion>", partial(mouse_move, game))
-master.bind("<ButtonRelease-1>", partial(mouse_up, game))
-async_tkinter_runloop(master)
+def dist(a, b):
+	return sqrt(((b-a)**2).sum())
+def v(a):
+	try:
+		return numpy.array((a.x, a.y))
+	except:
+		return numpy.array(a)
+
+class Window(Tk):
+	async def startgame(self):
+		for button in self.game.buttons:
+			button.set_state(CameraButton.OFF)
+
+		self.timer_hide()
+		self.display("Press return to start training.")
+		await self.wait_key("Return")
+		self.display("Starting training in:")
+		await asyncio.sleep(1)
+		for x in range(3, 0, -1):
+			self.display("{}   ".format(x))
+			await asyncio.sleep(0.2)
+			self.display("{}.  ".format(x))
+			await asyncio.sleep(0.2)
+			self.display("{}.. ".format(x))
+			await asyncio.sleep(0.2)
+			self.display("{}...".format(x))
+			await asyncio.sleep(0.2)
+		self.display("")
+
+		for button in self.game.buttons:
+			button.set_state(CameraButton.INVISIBLE)
+
+		for button in self.game.buttons:
+			await self.game.train(button)
+
+		for button in self.game.buttons:
+			button.set_state(CameraButton.OFF)
+		while True:
+			self.display("Press return to begin.")
+			key = await self.wait_key("Return", "r")
+			if key == "r":
+				await self.startgame()
+				return
+			for button in self.game.buttons:
+				button.set_state(CameraButton.OFF)
+			self.display("")
+			await self.game.get_images()
+			self.timer_start()
+
+			while True:
+				out = self.game.images[-1].astype(numpy.uint8)
+				for button in self.game.buttons:
+					out[button.presser.mask] = 200
+				cv2.imshow("Stream", out)
+				
+				if self.clock % 15 == 0:
+					print(chr(27) + "[2J")
+				for button in self.game.buttons:
+					button.presser.check(self.game.images)
+
+				if all(button.state == CameraButton.ON for button in self.game.buttons):
+					self.timer_stop()
+					break
+
+				await asyncio.sleep(0.05)
+				await self.game.take_image()
+				self.clock += 1
+
+	def __init__(self):
+		super().__init__()
+		self.listening_for = set()
+		self.dragging = False
+		self.clock = 0
+		canvas_width = 1500
+		canvas_height = 940
+		w = Canvas(self, 
+		           width=canvas_width,
+		           height=canvas_height)
+		w.config(background='black')
+		w.pack()
+		self.message_text = w.create_text(canvas_width/2, canvas_height/2, text="",  font=("Helvetica", 100), fill="white")
+		self.timer = w.create_text(canvas_width*0.15, canvas_height * 0.9, text="",  font=("Helvetica", 75), fill="white")
+		self.timer_init = time()
+		self.timergo = False
+
+		self.game = Game(w)
+		asyncio.ensure_future(self.startgame())
+		asyncio.ensure_future(self.timer_loop())
+		self.bind("<Key>", self.key_pressed)
+		self.bind("<Button-1>", self.mouse_down)
+		self.bind("<B1-Motion>", self.mouse_move)
+		self.bind("<ButtonRelease-1>", self.mouse_up)
+
+	async def wait_key(self, *keys):
+		self.listening_for.update(keys)
+		while True:
+			for key in keys:
+				if not key in self.listening_for:
+					return key
+			await asyncio.sleep(0.1)
+
+	def display(self, message):
+		self.game.canvas.itemconfig(self.message_text, text=message)
+
+	def timer_display(self):
+		self.game.canvas.itemconfig(self.timer, text="{:02.1f}".format(time() - self.timer_init))
+
+	async def timer_loop(self):
+		while True:
+			if self.timergo:
+				self.timer_display()
+			await asyncio.sleep(0.1)
+
+
+	def timer_start(self):
+		self.timergo = True
+		self.timer_init = time()
+
+	def timer_stop(self):
+		self.timergo = False
+
+	def timer_hide(self):
+		self.timergo = False
+		self.game.canvas.itemconfig(self.timer, text="")
+
+	def key_pressed(self, e):
+		if e.keysym in self.listening_for:
+			self.listening_for.remove(e.keysym)
+
+	def mouse_down(self, e):
+		e = v(e)
+		for button in self.game.buttons:
+			b = v(button.coords)
+			if dist(b, e) < 30:
+				self.dragging = (button, e-b)
+				break
+
+	def mouse_move(self, e):
+		if self.dragging:
+			e = v(e)
+			b, diff = self.dragging
+			b.coords = e - diff
+			b.update()
+
+	def mouse_up(self, e):
+		self.dragging = False
+
+main_window = Window()
+async_tkinter_runloop(main_window)
 
 
 
