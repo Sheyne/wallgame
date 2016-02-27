@@ -14,24 +14,20 @@ def dist(a, b):
 
 def generate_mask(baseline, red, green, blue):
 	baseline = baseline.transpose(2,0,1)
-	red = red.transpose(2,0,1)
-	green = green.transpose(2,0,1)
-	blue = blue.transpose(2,0,1)
+
+	params = cv2.SimpleBlobDetector_Params()
+	params.minThreshold = 100;
+	params.maxThreshold = 255;
+	params.filterByArea = True
+	params.minArea = 300
+	params.maxArea = 1000
+	detector = cv2.SimpleBlobDetector_create(params)
 
 	keypoints = []
-
 	for idx, img in enumerate((blue, green, red)):
+		img = img.transpose(2,0,1)
 		diff = numpy.abs(img[idx] - baseline[idx]).astype(numpy.uint8)
 		diff = numpy.full_like(diff, 255) - diff
-
-		params = cv2.SimpleBlobDetector_Params()
-		params.minThreshold = 100;
-		params.maxThreshold = 255;
-		params.filterByArea = True
-		params.minArea = 300
-		params.maxArea = 1000
-		 
-		detector = cv2.SimpleBlobDetector_create(params)
 		keypoints.append(detector.detect(diff))
 
 	unlikeness, keypoint = min( # find the set of three keypoints (one red, one green, one blue)
