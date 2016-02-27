@@ -8,69 +8,43 @@ from collections import namedtuple
 from math import sqrt
 from time import time
 
-def ceil_range(a, pad=10):
-	return int(ceil(a/pad) * pad)
 
-def pad(a, pad=10):
-	l = len(a)
-	nl = ceil_range(l, pad)
-	return numpy.append(a, numpy.zeros(nl - l, dtype=numpy.int))
+def dist(a, b):
+	return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2
 
-def intervals(l):
-    for length in range(1, l+1):
-        for idx in range(0, l-length+1):
-            yield slice(idx, idx+length)
+def generate_mask(baseline, red, green, blue):
+	baseline = baseline.transpose(2,0,1)
+	red = red.transpose(2,0,1)
+	green = green.transpose(2,0,1)
+	blue = blue.transpose(2,0,1)
 
-def bucketize(a, bucket_size):
-	a = pad(a, bucket_size)
-	return a.reshape((len(a)/bucket_size, bucket_size)).sum(axis=-1)
+	keypoints = []
 
-def offset_slice(sl, offset):
-	return slice(sl.start + offset, sl.stop + offset)
+	for idx, img in enumerate((blue, green, red)):
+		diff = numpy.abs(img[idx] - baseline[idx]).astype(numpy.uint8)
+		diff = numpy.full_like(diff, 255) - diff
 
-def expand_slice(sl, fraction):
-	o = sl.stop - sl.start
-	d = int((o/fraction - o)/2)
-	return slice(max(sl.start - d, 0), sl.stop + 2 * d)
+		params = cv2.SimpleBlobDetector_Params()
+		params.minThreshold = 100;
+		params.maxThreshold = 255;
+		params.filterByArea = True
+		params.minArea = 300
+		params.maxArea = 1000
+		 
+		detector = cv2.SimpleBlobDetector_create(params)
+		keypoints.append(detector.detect(diff))
 
-class FIND_RANGE_EXCEPTION(Exception): pass
-def find_range(a, most, bucket_size):
-	buckets = bucketize(a, bucket_size)
-	for i in intervals(len(buckets)):
-		if buckets[i].sum() > most:
-			return slice(i.start * bucket_size, i.stop * bucket_size)
-	raise FIND_RANGE_EXCEPTION()
+	unlikeness, keypoint = min( # find the set of three keypoints (one red, one green, one blue)
+							    # which are most like each other. (Distance between centers and 
+							    # approximate sizes are closest)
+					            (dist(a.pt, b.pt) + dist(b.pt, c.pt) + 2*b.size - a.size - c.size, a)
+					              for a, b, c in itertools.product(*keypoints)
+				            )
 
-def find_box(a, bucket_size=None, mosts=[0.5, 0.7, 0.95, 0.99, 0.99, 0.99, 0.99, 0.99], depth=0):
-	most = numpy.sum(a) * mosts[depth]
-	if bucket_size == None:
-		bucket_size = int(min(*a.shape)/5)
-	s1 = find_range(numpy.sum(a, axis=1), most=most, bucket_size=bucket_size)
-	s2 = find_range(numpy.sum(a, axis=0), most=most, bucket_size=bucket_size)
-	s1 = expand_slice(s1, mosts[depth])
-	s2 = expand_slice(s2, mosts[depth])
-	if bucket_size > 10:
-		s1b, s2b = find_box(a[s1,s2], int(bucket_size / 2), depth=depth+1)
-		return offset_slice(s1b, s1.start), offset_slice(s2b, s2.start)
-	return s1, s2
+	if unlikeness > 4:
+		raise ValueError("probably a bad calibration run")
 
-def compute_mask(diff):
-	box = find_box(diff)
-	i, j = box
-	rx = (i.stop - i.start)/ 2
-	ry = (j.stop - j.start)/ 2
-	h = i.start + rx
-	k = j.start + ry
-	return numpy.fromfunction(lambda i, j: (i-h)**2/rx**2 + (j-k)**2/ry**2 <= 1, diff.shape[:2], dtype=numpy.int)
-
-def multi_masks(baseline, red, green, blue):	
-	baseline = baseline.transpose(2,0,1).astype(numpy.int16)
-
-	for channel, color in enumerate((blue, green, red)):
-		color = color.astype(numpy.int16)
-		diff = color.transpose(2,0,1)[channel] - baseline[channel]
-		diff[diff < 40] = 0
-		yield compute_mask(diff.astype(numpy.uint8))
+	return numpy.fromfunction(lambda x,y: dist(keypoint.pt, (y, x)) < (keypoint.size/2)**2, diff.shape)
 
 def async(func):
 	asyncio.get_event_loop().run_in_executor(None, func)
@@ -190,8 +164,7 @@ class Game():
 		button.update()
 
 		def cpu_bound():
-			a,b,c = (a & b for (a,b) in combinations(multi_masks(baseline, red, green, blue), 2))
-			button.presser.mask = a | b | c
+			button.presser.mask = generate_mask(baseline, red, gree, blue)
 
 		await asyncio.get_event_loop().run_in_executor(None, cpu_bound)
 
@@ -281,7 +254,7 @@ class Window(Tk):
 				out = self.game.images[-1].astype(numpy.uint8)
 				for button in self.game.buttons:
 					out[button.presser.mask] = 200
-				cv2.imshow("Stream", out)
+				# cv2.imshow("Stream", out)
 				
 				if self.clock % 15 == 0:
 					print(chr(27) + "[2J")
