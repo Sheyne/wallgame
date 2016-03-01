@@ -3,7 +3,7 @@ import numpy
 from math import ceil
 import cv2
 import asyncio
-from itertools import combinations
+import itertools
 from collections import namedtuple
 from math import sqrt
 from time import time
@@ -13,10 +13,14 @@ def dist(a, b):
 	return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2
 
 def generate_mask(baseline, red, green, blue):
+	cv2.imwrite("new_training/baseline.png", baseline.astype(numpy.uint8))
+	cv2.imwrite("new_training/red.png", red.astype(numpy.uint8))
+	cv2.imwrite("new_training/green.png", green.astype(numpy.uint8))
+	cv2.imwrite("new_training/blue.png", blue.astype(numpy.uint8))
 	baseline = baseline.transpose(2,0,1)
 
 	params = cv2.SimpleBlobDetector_Params()
-	params.minThreshold = 100;
+	params.minThreshold = 50;
 	params.maxThreshold = 255;
 	params.filterByArea = True
 	params.minArea = 300
@@ -29,6 +33,7 @@ def generate_mask(baseline, red, green, blue):
 		diff = numpy.abs(img[idx] - baseline[idx]).astype(numpy.uint8)
 		diff = numpy.full_like(diff, 255) - diff
 		keypoints.append(detector.detect(diff))
+		print(keypoints)
 
 	unlikeness, keypoint = min( # find the set of three keypoints (one red, one green, one blue)
 							    # which are most like each other. (Distance between centers and 
@@ -160,7 +165,7 @@ class Game():
 		button.update()
 
 		def cpu_bound():
-			button.presser.mask = generate_mask(baseline, red, gree, blue)
+			button.presser.mask = generate_mask(baseline, red, green, blue)
 
 		await asyncio.get_event_loop().run_in_executor(None, cpu_bound)
 
