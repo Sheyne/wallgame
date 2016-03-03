@@ -12,9 +12,11 @@ async def handle_main(request):
 	}
 	</script>
 
-	<input type="button" onclick="send_message('start')" value="Start"/><br />
-	<input type="button" onclick="send_message('stop')" value="Stop"/><br />
-	<input type="button" onclick="send_message('train')" value="Train"/><br />
+	<input type="button" onclick="send_message({cmd:'start'})" value="Start"/><br />
+	<input type="button" onclick="send_message({cmd:'stop'})" value="Stop"/><br />
+	<input type="button" onclick="send_message({cmd:'train'})" value="Train"/><br />
+	<input type="button" onclick="send_message({cmd:'save_images', arg: false})" value="Dont"/>
+	<input type="button" onclick="send_message({cmd:'save_images', arg: true})" value="Save Images"/><br />
 
 	</html>""")
 

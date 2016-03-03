@@ -29,6 +29,8 @@ import io
 master_images = {}
 def image_callback(arg):
 	return master_images[arg]
+image_callback.save_images = False
+
 
 def set_master_image(name, image):
 	buff = io.BytesIO()
@@ -40,10 +42,11 @@ def set_master_image(name, image):
 	master_images[name] = buff.getvalue()
 
 def generate_mask(baseline, red, green, blue):
-	# set_master_image('baseline', baseline)
-	# set_master_image('red', red)
-	# set_master_image('green', green)
-	# set_master_image('blue', blue)
+	if image_callback.save_images:
+		set_master_image('baseline', baseline)
+		set_master_image('red', red)
+		set_master_image('green', green)
+		set_master_image('blue', blue)
 	baseline = baseline.astype(numpy.int16).transpose(2,0,1)
 
 	params = cv2.SimpleBlobDetector_Params()
@@ -63,9 +66,9 @@ def generate_mask(baseline, red, green, blue):
 		kp = detector.detect(diff)
 		keypoints.append(kp)
 
-		im_with_keypoints = cv2.drawKeypoints(diff, kp, numpy.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-		set_master_image('diff{}'.format(idx), im_with_keypoints)
-
+		if image_callback.save_images:
+			im_with_keypoints = cv2.drawKeypoints(diff, kp, numpy.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+			set_master_image('diff{}'.format(idx), im_with_keypoints)
 
 	try:
 		unlikeness, keypoint = min( # find the set of three keypoints (one red, one green, one blue)
@@ -125,16 +128,16 @@ class Detector:
 		self.is_fired = False
 
 	def feed(self, image_stream):
-			def compute_diff(i, j):
-				diff = j[self.mask] - i[self.mask]
-				max_diff = numpy.abs(diff).astype(numpy.uint8)
-				return max_diff.sum()
-			first, *rest, last = images
-			average_diff = sum(compute_diff(first, image) for image in rest) / len(rest)
-			diff = compute_diff(first, last)
-			hit = diff > average_diff * 3
-			if hit:
-				self.action(self)
+		def compute_diff(i, j):
+			diff = j[self.mask] - i[self.mask]
+			max_diff = numpy.abs(diff).astype(numpy.uint8)
+			return max_diff.sum()
+		first, *rest, last = image_stream.images
+		average_diff = sum(compute_diff(first, image) for image in rest) / len(rest)
+		diff = compute_diff(first, last)
+		hit = diff > average_diff * 3
+		if hit:
+			self.action(self)
 
 
 

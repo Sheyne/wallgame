@@ -31,40 +31,51 @@ class Game:
 		self.timer = Timer()
 		root.children = self.dots + [self.timer]
 		self.camera = CameraStream(0)
+		self.state = 0
 
 	def detector_fired(self, detector):
-		print(self.detectors.find(detector))
+		print("Detector Fired: ", self.detectors.find(detector))
  	
 	async def callback(self, data):
-		if data == 'start':
-			await self.main()
-		if data == 'stop':
+		if data['cmd'] == 'save_images':
+			image_callback.save_images = data['arg']
+		if data['cmd'] == 'start':
+			self.root.io_loop.create_task(self.main())
+		if data['cmd'] == 'stop':
 			await self.stop()
-		if data == 'train':
+		if data['cmd'] == 'train':
 			await self.train()
 
 	async def main(self):
 		self.timer.start()
+		self.state = 1
+		while self.state == 1:
+			for detector in self.detectors:
+				detector.feed(self.camera)
+			await asyncio.sleep(0.01)
 
 	async def stop(self):
+		self.state = 0
 		self.timer.stop()
 
 	async def train(self):
+		self.state = 2
 		for child in self.root.children:
 			child.hidden = True
 		
-		for detector in self.detectors:
-			await detector.train(self.root, self.camera)
-
-		for child in self.root.children:
-			child.hidden = False
+		try:
+			for detector in self.detectors:
+				await detector.train(self.root, self.camera)
+		finally:
+			for child in self.root.children:
+				child.hidden = False
 
 if __name__ == '__main__':
 	disp = RootView()
 	g = Game(disp)
 	Thread(target=g.camera.run).start()
 
-	disp.io_loop.call_soon(disp.draw_interface)
+	disp.io_loop.call_soon(disp.master_loop)
 	start_application(g.callback, image_callback)
 
 

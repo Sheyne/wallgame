@@ -58,6 +58,10 @@ class RootView(tft.TftDisplay):
 		self.hidden = False
 		self.color = (0,0,0)
 
+	def master_loop(self):
+		self.draw_interface()
+		self.io_loop.call_later(0.07, self.master_loop)
+
 	def draw_interface(self):
 		ctx = self.ctx		
 		self.blank_screen(ctx=ctx,
@@ -76,6 +80,5 @@ class RootView(tft.TftDisplay):
 				node.draw_wrapper(ctx)
 		display_node(self)
 		self.blit()
-		self.io_loop.call_later(0.01, self.draw_interface)
 
 
