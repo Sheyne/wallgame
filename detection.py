@@ -5,6 +5,7 @@ from collections import deque
 from PIL import Image
 import asyncio
 
+
 class CameraStream:
 	def __init__(self, *args, **kwd):
 		super().__init__()
@@ -21,6 +22,7 @@ class CameraStream:
 	def latest(self):
 		return self.images[-1]
 
+
 def dist(a, b):
 	return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2
 
@@ -33,20 +35,23 @@ image_callback.save_images = False
 
 
 def set_master_image(name, image):
+	if not image_callback.save_images:
+		return
+
 	buff = io.BytesIO()
 	if len(image.shape) == 3:
-		b,g,r = image.transpose(2,0,1)
+		b, g, r = image.transpose(2,0,1)
 		image = numpy.array([r,g,b]).transpose(1,2,0)
 	i = Image.fromarray(image)
 	i.save(buff, format="PNG")
 	master_images[name] = buff.getvalue()
 
+
 def generate_mask(baseline, red, green, blue):
-	if image_callback.save_images:
-		set_master_image('baseline', baseline)
-		set_master_image('red', red)
-		set_master_image('green', green)
-		set_master_image('blue', blue)
+	set_master_image('baseline', baseline)
+	set_master_image('red', red)
+	set_master_image('green', green)
+	set_master_image('blue', blue)
 	baseline = baseline.astype(numpy.int16).transpose(2,0,1)
 
 	params = cv2.SimpleBlobDetector_Params()
@@ -91,6 +96,7 @@ class Detector:
 	def __init__(self, target, action):
 		self.target = target
 		self.action = action
+		self.mask = None
 
 	async def train(self, root, camera):
 		async def refresh():
@@ -124,14 +130,12 @@ class Detector:
 
 		self.mask = generate_mask(baseline, red, green, blue)
 
-	def clear(self):
-		self.is_fired = False
-
-	def feed(self, image_stream):
+	def detect(self, image_stream):
 		def compute_diff(i, j):
 			diff = j[self.mask] - i[self.mask]
 			max_diff = numpy.abs(diff).astype(numpy.uint8)
 			return max_diff.sum()
+
 		first, *rest, last = image_stream.images
 		average_diff = sum(compute_diff(first, image) for image in rest) / len(rest)
 		diff = compute_diff(first, last)

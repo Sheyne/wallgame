@@ -1,7 +1,7 @@
 import cairocffi as cairo
 from cairotft import tft
 from math import pi
-import asyncio
+
 
 class View:
 	def __init__(self, loc=(0,0), size=(0,0), color=(0,0,0), hidden=False):
@@ -20,8 +20,10 @@ class View:
 			with context:
 				self.transforms(context)
 				self.draw(context)
+
 	def draw(self, context):
 		pass
+
 
 class Label(View):
 	def __init__(self, text, font_size=20, *args, **kwdargs):
@@ -40,15 +42,18 @@ class Shape(View):
 		super().transforms(context)
 		context.scale(*self.size)
 
+
 class Ellipse(Shape):
 	def draw(self, context):
 		context.arc(0.5, 0.5, 0.5, 0, 2 * pi)
 		context.fill()
 
+
 class Rectangle(Shape):
 	def draw(self, context):
 		context.rectangle(0, 0, 1, 1)
 		context.fill()
+
 
 class RootView(tft.TftDisplay):
 	def __init__(self, cairo_format=cairo.FORMAT_RGB16_565, *args, **kwdargs):
@@ -56,7 +61,7 @@ class RootView(tft.TftDisplay):
 		self.size = (self.width, self.height)
 		self.loc = (0, 0)
 		self.hidden = False
-		self.color = (0,0,0)
+		self.color = (0, 0, 0)
 
 	def master_loop(self):
 		self.draw_interface()
@@ -64,9 +69,7 @@ class RootView(tft.TftDisplay):
 
 	def draw_interface(self):
 		ctx = self.ctx		
-		self.blank_screen(ctx=ctx,
-						  color=(0, 0, 0, 1),
-						  blit=False)
+		self.blank_screen(ctx=ctx, color=(0, 0, 0, 1), blit=False)
 		
 		def display_node(node):
 			if hasattr(node, 'hidden') and node.hidden:

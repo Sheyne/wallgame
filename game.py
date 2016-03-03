@@ -4,10 +4,13 @@ import asyncio
 from http_server import start_application
 from detection import Detector, CameraStream, image_callback
 from threading import Thread
+
+
 class Timer:
 	def __init__(self):
 		self.v = Label("", loc=(0,0), color=(1,1,1), font_size=200)
 		self.children = [self.v]
+		self.time = 0
 		self.start()
 		self.value = 0
 
@@ -23,6 +26,7 @@ class Timer:
 	def stop(self):
 		self.is_counting = False
 
+
 class Game:
 	def __init__(self, root):
 		self.root = root
@@ -34,8 +38,8 @@ class Game:
 		self.state = 0
 
 	def detector_fired(self, detector):
-		print("Detector Fired: ", self.detectors.find(detector))
- 	
+		print("Detector Fired: ", self.detectors.index(detector))
+
 	async def callback(self, data):
 		if data['cmd'] == 'save_images':
 			image_callback.save_images = data['arg']
@@ -51,7 +55,7 @@ class Game:
 		self.state = 1
 		while self.state == 1:
 			for detector in self.detectors:
-				detector.feed(self.camera)
+				detector.detect(self.camera)
 			await asyncio.sleep(0.01)
 
 	async def stop(self):
@@ -62,7 +66,7 @@ class Game:
 		self.state = 2
 		for child in self.root.children:
 			child.hidden = True
-		
+
 		try:
 			for detector in self.detectors:
 				await detector.train(self.root, self.camera)
@@ -71,11 +75,11 @@ class Game:
 				child.hidden = False
 
 if __name__ == '__main__':
-	disp = RootView()
-	g = Game(disp)
+	root = RootView()
+	g = Game(root)
 	Thread(target=g.camera.run).start()
 
-	disp.io_loop.call_soon(disp.master_loop)
+	root.io_loop.call_soon(root.master_loop)
 	start_application(g.callback, image_callback)
 
 
