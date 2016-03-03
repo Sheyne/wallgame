@@ -1,11 +1,13 @@
 from aiohttp import web
+import json
+import urllib
 
 async def handle_main(request):
     return web.Response(body=b"""<html>
 	<script>
 	function send_message(o){
 		var xmlhttp = new XMLHttpRequest();
-		xmlhttp.open("GET", '/message?'+encodeURI(JSON.stringify(o)), true);
+		xmlhttp.open("GET", '/message/'+encodeURI(JSON.stringify(o)), true);
 		xmlhttp.send();
 	}
 	</script>
@@ -16,11 +18,11 @@ async def handle_main(request):
 
 	</html>""")
 
-async def handle_images(request):
-	image = request.match_info.get('image', "baseline")
-	return web.Response(content_type="image/png",body=self.server.image_callback(image))
-
 async def handle_image(request):
+	image = request.match_info.get('image', "baseline")
+	return web.Response(content_type="image/png",body=request.app.image_callback(image))
+
+async def handle_images(request):
 	return web.Response(body=b"""<html>
 				<img src="image/baseline" />
 				<img src="image/red" />
@@ -31,7 +33,7 @@ async def handle_image(request):
 async def handle_message(request):
 	message = request.match_info.get('message')
 	data = json.loads(urllib.parse.unquote(message))
-	asyncio.ensure_future(self.server.callback(data))
+	await request.app.callback(data)
 	return web.Response(body=b'success')
 
 app = web.Application()
@@ -40,5 +42,7 @@ app.router.add_route('GET', '/images', handle_images)
 app.router.add_route('GET', '/image/{image}', handle_image)
 app.router.add_route('GET', '/message/{message}', handle_message)
 
-def start_application():
+def start_application(callback, image_callback):
+	app.callback = callback
+	app.image_callback = image_callback
 	web.run_app(app, port=8000)

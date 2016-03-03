@@ -3,6 +3,7 @@ import numpy
 import itertools
 from collections import deque
 from PIL import Image
+import asyncio
 
 class CameraStream:
 	def __init__(self, *args, **kwd):
@@ -31,33 +32,40 @@ def image_callback(arg):
 
 def set_master_image(name, image):
 	buff = io.BytesIO()
-	b,g,r = image.transpose(2,0,1)
-	image = numpy.array([r,g,b]).transpose(1,2,0)
+	if len(image.shape) == 3:
+		b,g,r = image.transpose(2,0,1)
+		image = numpy.array([r,g,b]).transpose(1,2,0)
 	i = Image.fromarray(image)
 	i.save(buff, format="PNG")
 	master_images[name] = buff.getvalue()
 
 def generate_mask(baseline, red, green, blue):
-	set_master_image('baseline', baseline)
-	set_master_image('red', red)
-	set_master_image('green', green)
-	set_master_image('blue', blue)
-	baseline = baseline.transpose(2,0,1)
+	# set_master_image('baseline', baseline)
+	# set_master_image('red', red)
+	# set_master_image('green', green)
+	# set_master_image('blue', blue)
+	baseline = baseline.astype(numpy.int16).transpose(2,0,1)
 
 	params = cv2.SimpleBlobDetector_Params()
 	params.minThreshold = 100;
 	params.maxThreshold = 255;
 	params.filterByArea = True
-	params.minArea = 300
+	params.minArea = 100
 	params.maxArea = 1000
 	detector = cv2.SimpleBlobDetector_create(params)
 
 	keypoints = []
 	for idx, img in enumerate((blue, green, red)):
-		img = img.transpose(2,0,1)
+		img = img.astype(numpy.int16).transpose(2,0,1)
 		diff = numpy.abs(img[idx] - baseline[idx]).astype(numpy.uint8)
 		diff = numpy.full_like(diff, 255) - diff
-		keypoints.append(detector.detect(diff))
+		
+		kp = detector.detect(diff)
+		keypoints.append(kp)
+
+		im_with_keypoints = cv2.drawKeypoints(diff, kp, numpy.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+		set_master_image('diff{}'.format(idx), im_with_keypoints)
+
 
 	try:
 		unlikeness, keypoint = min( # find the set of three keypoints (one red, one green, one blue)
@@ -82,22 +90,29 @@ class Detector:
 		self.action = action
 
 	async def train(self, root, camera):
-		print("drawing")
-		root.draw_interface()		
-		print("drawn")
+		async def refresh():
+			root.draw_interface()		
+			await asyncio.sleep(0.3)
+		
+		await refresh()
 		baseline = camera.latest()
 		
 		self.target.hidden = False
 		old_color = self.target.color
 
 		self.target.color = (1, 0, 0)
-		root.draw_interface()		
+		
+		await refresh()
 		red = camera.latest()
 		self.target.color = (0, 1, 0)
 		root.draw_interface()		
+
+		await refresh()
 		green = camera.latest()
 		self.target.color = (0, 0, 1)
 		root.draw_interface()		
+
+		await refresh()
 		blue = camera.latest()
 
 		self.target.hidden = True

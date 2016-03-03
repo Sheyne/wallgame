@@ -34,8 +34,8 @@ class Game:
 
 	def detector_fired(self, detector):
 		print(self.detectors.find(detector))
-
-	def callback(self, data):
+ 	
+	async def callback(self, data):
 		if data == 'start':
 			await self.main()
 		if data == 'stop':
@@ -43,13 +43,13 @@ class Game:
 		if data == 'train':
 			await self.train()
 
-	await def main(self):
+	async def main(self):
 		self.timer.start()
 
-	await def stop(self):
+	async def stop(self):
 		self.timer.stop()
 
-	await def train(self):
+	async def train(self):
 		for child in self.root.children:
 			child.hidden = True
 		
@@ -58,19 +58,14 @@ class Game:
 
 		for child in self.root.children:
 			child.hidden = False
-		
-
-
 
 if __name__ == '__main__':
 	disp = RootView()
 	g = Game(disp)
 	Thread(target=g.camera.run).start()
 
-	s = Server(disp.io_loop, g.callback, image_callback)
-	disp.io_loop.call_soon(s.handle_request)
-	disp.io_loop.call_soon(self.draw_interface, self.ctx)
-	start_application()
+	disp.io_loop.call_soon(disp.draw_interface)
+	start_application(g.callback, image_callback)
 
 
 
