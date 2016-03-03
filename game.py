@@ -1,7 +1,7 @@
 from graphics import Ellipse, Rectangle, View, Shape, RootView, Label
 from time import time
 import asyncio
-from http_server import Server
+from http_server import start_application
 from detection import Detector, CameraStream, image_callback
 from threading import Thread
 class Timer:
@@ -43,18 +43,18 @@ class Game:
 		if data == 'train':
 			await self.train()
 
-	def main(self):
+	await def main(self):
 		self.timer.start()
 
-	def stop(self):
+	await def stop(self):
 		self.timer.stop()
 
-	def train(self):
+	await def train(self):
 		for child in self.root.children:
 			child.hidden = True
 		
 		for detector in self.detectors:
-			detector.train(self.root, self.camera)
+			await detector.train(self.root, self.camera)
 
 		for child in self.root.children:
 			child.hidden = False
@@ -65,10 +65,12 @@ class Game:
 if __name__ == '__main__':
 	disp = RootView()
 	g = Game(disp)
+	Thread(target=g.camera.run).start()
+
 	s = Server(disp.io_loop, g.callback, image_callback)
 	disp.io_loop.call_soon(s.handle_request)
-	Thread(target=g.camera.run).start()
-	disp.run()
+	disp.io_loop.call_soon(self.draw_interface, self.ctx)
+	start_application()
 
 
 

@@ -29,8 +29,8 @@ async def handle_image(request):
 	</html>""")
 
 async def handle_message(request):
-	print(request.match_info.get('message', "no message here"))
-	data = json.loads(urllib.parse.unquote(self.path[len(prefix):]))
+	message = request.match_info.get('message')
+	data = json.loads(urllib.parse.unquote(message))
 	asyncio.ensure_future(self.server.callback(data))
 	return web.Response(body=b'success')
 
@@ -39,4 +39,6 @@ app.router.add_route('GET', '/', handle_main)
 app.router.add_route('GET', '/images', handle_images)
 app.router.add_route('GET', '/image/{image}', handle_image)
 app.router.add_route('GET', '/message/{message}', handle_message)
-web.run_app(app, port=8000)
+
+def start_application():
+	web.run_app(app, port=8000)
