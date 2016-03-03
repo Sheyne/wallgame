@@ -1,30 +1,7 @@
-import http.server
-import socketserver
-import urllib.parse
-import json
-import asyncio
+from aiohttp import web
 
-class Handler(http.server.BaseHTTPRequestHandler):
-	def log_message(self, format, *args):
-		return
-
-	def write_html(self, txt):
-		self.send_response(200)
-		self.send_header("Content-type", "text/html")
-		self.end_headers()
-		self.wfile.write(txt)
-
-	def do_GET(self):
-		if self.path.startswith("/image/"):
-			self.send_response(200)
-			self.send_header("Content-type", "image/png")
-			self.end_headers()
-			self.wfile.write(self.server.image_callback(self.path[len("/image/"):]))
-			return
-
-		prefix = '/message?'
-		if self.path == "/":
-			self.write_html(b"""<html>
+async def handle_main(request):
+    return web.Response(body=b"""<html>
 	<script>
 	function send_message(o){
 		var xmlhttp = new XMLHttpRequest();
@@ -38,28 +15,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
 	<input type="button" onclick="send_message('train')" value="Train"/><br />
 
 	</html>""")
-		elif self.path == "/image":
-			self.write_html(b"""<html>
+
+async def handle_images(request):
+	image = request.match_info.get('image', "baseline")
+	return web.Response(content_type="image/png",body=self.server.image_callback(image))
+
+async def handle_image(request):
+	return web.Response(body=b"""<html>
 				<img src="image/baseline" />
 				<img src="image/red" />
 				<img src="image/green" />
 				<img src="image/blue" />
 	</html>""")
 
-		elif self.path.startswith(prefix):
-			self.write_html(b"")
-			data = json.loads(urllib.parse.unquote(self.path[len(prefix):]))
-			asyncio.ensure_future(self.server.callback(data))
+async def handle_message(request):
+	print(request.match_info.get('message', "no message here"))
+	data = json.loads(urllib.parse.unquote(self.path[len(prefix):]))
+	asyncio.ensure_future(self.server.callback(data))
+	return web.Response(body=b'success')
 
-class Server:
-	def __init__(self, loop, callback, image_callback):
-		socketserver.TCPServer.allow_reuse_address = True
-		self.httpd = socketserver.TCPServer(("", 8000), Handler)
-		self.httpd.loop = loop
-		self.httpd.callback = callback
-		self.httpd.image_callback = image_callback
-		self.httpd.serve_forever()
-	
-	async def handle_request(self):
-		self.httpd.handle_request()
-	
+app = web.Application()
+app.router.add_route('GET', '/', handle_main)
+app.router.add_route('GET', '/images', handle_images)
+app.router.add_route('GET', '/image/{image}', handle_image)
+app.router.add_route('GET', '/message/{message}', handle_message)
+web.run_app(app, port=8000)
