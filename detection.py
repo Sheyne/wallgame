@@ -92,56 +92,57 @@ def generate_mask(baseline, red, green, blue):
 	return numpy.fromfunction(lambda x,y: dist(keypoint.pt, (y, x)) < (keypoint.size/2)**2, diff.shape)
 
 
-class Detector:
-	def __init__(self, target, action):
+class Clicker:
+	def __init__(self, action, target, streams=[]):
+		self.detectors = [Detector(stream) for stream in streams]
 		self.target = target
 		self.action = action
-		self.mask = None
 
-	async def train(self, root, camera):
-		async def refresh():
-			root.draw_interface()		
-			await asyncio.sleep(0.3)
-		
-		await refresh()
-		baseline = camera.latest()
-		
+	async def train(self, root):
 		self.target.hidden = False
 		old_color = self.target.color
 
-		self.target.color = (1, 0, 0)
-		
-		await refresh()
-		red = camera.latest()
-		self.target.color = (0, 1, 0)
-		root.draw_interface()		
-
-		await refresh()
-		green = camera.latest()
-		self.target.color = (0, 0, 1)
-		root.draw_interface()		
-
-		await refresh()
-		blue = camera.latest()
+		colors = [(0,0,0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]
+		for color, *_ in zip(colors, *self.detectors):
+			self.target.color = color
+			root.draw_interface()
+			await asyncio.sleep(0.25)
 
 		self.target.hidden = True
 		self.target.color = old_color
-		root.draw_interface()		
+		root.draw_interface()
 
+	def feed(self):
+		if all(d.detect() for d in self.detectors):
+			self.action(self)
+
+
+class Detector:
+	def __init__(self, stream):
+		self.stream = stream
+		self.mask = None
+
+	def train(self):
+		yield # wait for the interface to be ready
+		baseline = self.stream.latest()
+		yield
+		red = self.stream.latest()
+		yield
+		green = self.stream.latest()
+		yield
+		blue = self.stream.latest()
 		self.mask = generate_mask(baseline, red, green, blue)
 
-	def detect(self, image_stream):
+	def detect(self):
 		def compute_diff(i, j):
-			diff = j[self.mask] - i[self.mask]
+			diff = j[self.mask].astype(numpy.int16) - i[self.mask].astype(numpy.int16)
 			max_diff = numpy.abs(diff).astype(numpy.uint8)
 			return max_diff.sum()
 
-		first, *rest, last = image_stream.images
+		first, *rest, last = self.stream.images
 		average_diff = sum(compute_diff(first, image) for image in rest) / len(rest)
 		diff = compute_diff(first, last)
-		hit = diff > average_diff * 3
-		if hit:
-			self.action(self)
+		return diff > average_diff * 3
 
 
 
