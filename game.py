@@ -56,7 +56,7 @@ class Game:
 		while self.state == 1:
 			for clicker in self.clickers:
 				clicker.feed()
-			await asyncio.sleep(0.01)
+			await asyncio.sleep(0.1)
 
 	async def stop(self):
 		self.state = 0
@@ -79,6 +79,7 @@ class Game:
 if __name__ == '__main__':
 	root = RootView()
 	g = Game(root)
+	image_callback.g = g
 
 	for camera_stream in g.camera_streams:
 		Thread(target=camera_stream.run).start()
