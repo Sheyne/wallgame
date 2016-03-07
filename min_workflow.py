@@ -42,7 +42,7 @@ display.blank()
 camera = cv2.VideoCapture(0)
 
 
-points = [(randint(15, display.width - 15),randint(500, display.height - 15)) for _ in range(3)]
+points = [(randint(15, display.width - 15),randint(500, display.height - 15)) for _ in range(5)]
 real_locations = find_locations(display, camera, points)
 
 masks = {}
@@ -88,7 +88,7 @@ while True:
             for point, mask in masks.items():
                 volume = diff[mask].sum()
                 if idx > 0:
-                    if idx > 10 and volume > noises[point] * 1.5:
+                    if idx > 10 and volume > noises[point] * 2:
                         display.draw_point(*point, (1,0,0))
                         display.dump_buffer()
                         hits.add(point)
