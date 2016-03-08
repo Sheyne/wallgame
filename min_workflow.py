@@ -5,7 +5,6 @@ import numpy as np
 from math import pi
 from new_detect import find_locations, dist
 import cv2
-import worst_http_ever
 from time import time, sleep
 
 class Display:
@@ -49,86 +48,57 @@ def draw_points(pts, color=(1,1,1)):
         display.draw_point(x,y, color)
 
 
-q = {}
-while True:
 
-    def sider():
-        if 'location' not in q:
-            return
-        locs = q['location']
-        points = [(int(loc[0] * display.width), int(loc[1] * display.height)) for k, loc in locs.items()]
-        display.blank(False)
-        for x,y in points:
-            display.draw_point(x,y)
+display.blank()
 
-        display.dump_buffer()
+inset = 15
 
-    worst_http_ever.http_waiter(q, sider)
-    
-    locs = q['location']
-    points = [(loc[0] * display.width, loc[1] * display.height) for k, loc in locs.items()]
+points = [(inset, inset), (display.width-inset, inset), (inset, display.height-inset), (display.width-inset, display.height-inset)]
 
-    display.blank()
-    if 'redo' in q:
-        real_locations = find_locations(display, camera, points)
+real_locations = find_locations(display, camera, points, 2)
 
-    masks = {}
+print(real_locations)
 
-    scale_factor = 0.6
+display.context.set_source_rgb(1,0.4,0.4)
+display.context.set_line_width(3)
+display.context.move_to(0,0)
+display.context.line_to(display.width,display.height)
+display.context.move_to(0,display.height)
+display.context.line_to(display.width,0)
+display.context.move_to(0,0)
+display.context.line_to(display.width,0)
+display.context.move_to(0,0)
+display.context.line_to(0,display.height)
+display.context.move_to(0,display.height)
+display.context.line_to(display.width,display.height)
+display.context.move_to(display.width,display.height)
+display.context.line_to(display.width,0)
+display.context.stroke()
 
-    def get_an_image():
-        _, img = camera.read()
-        img = cv2.resize(img, (int(img.shape[1] * scale_factor), int(img.shape[0] * scale_factor)))
-        img = img.astype(np.int16)
-        return img
+display.dump_buffer()
 
+def get_an_image():
+    _, img = camera.read()
+    return img
+
+camera_space = np.array([real_locations[point][0] for point in points],np.float32)
+
+projector_space = np.array(points,np.float32)
+sc = 0.5
+projector_space *= sc
+
+trans = cv2.getPerspectiveTransform(camera_space, projector_space)
+
+for _ in range(10):
+    get_an_image()
+an_img = get_an_image()
+
+t = time()
+for x in range(10):
     an_img = get_an_image()
+    out = cv2.warpPerspective(an_img, trans, (int(display.width * sc), int(display.height * sc)))
+print((time() - t)/10)
 
-    for point, ((x, y), size) in real_locations.items():
-        x *= scale_factor
-        y *= scale_factor
-        size *= scale_factor / 2
-        area = (slice(y-size,y+size), slice(x-size, x+size))
 
-        masks[point] = area
 
-    for x,y in points:
-        display.draw_point(x,y)
 
-    display.dump_buffer()
-
-    while 1:
-        noises = {}
-        prev_frame = None
-        idx = 0
-        t = time()
-        hits = set()
-        while True:
-            display.blank(False)
-            with display.context:
-                display.context.set_source_rgb(1,1,1)
-                display.context.move_to(10, 110)
-                display.context.set_font_size(100)
-                display.context.show_text("{:.2f}".format(time()-t))
-            draw_points(points)
-            draw_points(hits, color=(0,0,1))
-            display.dump_buffer()
-            if len(hits) == len(points):
-                sleep(2)
-                break
-            img = get_an_image()
-            if prev_frame is not None:
-                diff = np.abs(img - prev_frame)
-
-                for point, mask in masks.items():
-                    volume = diff[mask].sum()
-                    if idx > 0:
-                        if idx > 20 and volume > noises[point] * 2.4:
-                            hits.add(point)
-
-                        noises[point] = noises[point] * .75 + volume * .25
-                    else:
-                        noises[point] = volume
-
-                idx += 1
-            prev_frame = img

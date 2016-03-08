@@ -5,6 +5,7 @@ from itertools import *
 import collections
 from statistics import median
 from math import ceil
+from collections import defaultdict
 
 params = cv2.SimpleBlobDetector_Params()
 params.minThreshold = 20
@@ -41,31 +42,42 @@ def bucketize(a, set_lengths=3, required_sets=3):
                 break
     return (tuple(s) for s in sets)
 
-def find_locations(display, camera, points):
+def find_locations(display, camera, points, repeats=3):
+    display.ctx_main.set_source_rgb(0,0,0)
+    display.ctx_main.rectangle(0, 0, display.width, display.height)
+    display.ctx_main.fill()
     # get camera in a good state
-    for x in range(10):
+    for x in range(15):
         ret, img = camera.read()
 
     keypoints = collections.defaultdict(set)
 
-    for point_set in bucketize(points):
-        imgs = []
-        for color in [(1,1,1), (0,0,0)]:
-            for x,y in point_set:
-                display.draw_point(x,y, color=color, immediately=True)
+    all_imgs = []
+    point_is_on = defaultdict(lambda: False)
+    ret, prev_img = camera.read()
 
-            camera.read()
-            camera.read()
-            camera.read()
-            ret, img = camera.read()
-            imgs.append(img)
-        base, dots = imgs
-        diff = dots.astype(np.int16) - base.astype(np.int16)
-        diff[diff < 0] = 0
+    for point_set in bucketize(points, required_sets=repeats):
+        for x,y in point_set:
+            display.draw_point(x,y, color=(0,0,0) if point_is_on[x,y] else (1,1,1), immediately=True)
+            point_is_on[x,y] = not point_is_on[x,y]
+        
+        camera.read()
+        camera.read()
+        camera.read()
+        camera.read()
+        camera.read()
+        ret, img = camera.read()
+        all_imgs.append(img)
+
+        diff = np.abs(img.astype(np.int16) - prev_img.astype(np.int16))
         kp = detector.detect(diff.astype(np.uint8))
         if len(kp) >= len(point_set):
             for point in point_set:
                 keypoints[point].add(tuple(kp))
+        prev_img = img
+
+    # for idx, img in enumerate(all_imgs):
+    #     cv2.imwrite("basic-test-{}.png".format(idx), img)
 
     real_locations = {}
     for pt, potential_keypoints in keypoints.items():
