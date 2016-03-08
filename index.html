@@ -12,7 +12,6 @@
 		line-height: 40px;
 	}
 </style>
-<input type="button" value="Exit" id="exit_button" />
 <script type="text/javascript">
 	$(document).ready(function () {
 		for (x = 1; x<10; x++) {
@@ -24,13 +23,16 @@
 		}
 		function send(cmd, data){
 			$.ajax({
-			  url: "http://localhost:8001/" + cmd,
+			  url: "http://10.10.10.3:8001/" + cmd,
 			  data: data,
 			});
 		}
 
 		$("#exit_button").click(function(){
 			send("exit")
+		})
+		$("#redo_button").click(function(){
+			send("redo")
 		})
 
 		var pressed = null;
@@ -72,5 +74,7 @@
 	})
 </script>
 <body>
+<input type="button" value="Exit" id="exit_button" /><br />
+<input type="button" value="Redo" id="redo_button" />
 </body>
 </html>
