@@ -1,0 +1,76 @@
+<html>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
+<style type="text/css">
+	.dot{
+		width: 40px;
+		height: 40px;
+		border-radius: 22px;
+		position: absolute;
+		background-color: white;
+		border: 2px solid grey;
+		text-align: center;
+		line-height: 40px;
+	}
+</style>
+<input type="button" value="Exit" id="exit_button" />
+<script type="text/javascript">
+	$(document).ready(function () {
+		for (x = 1; x<10; x++) {
+			var n = $("<div class='dot'>")
+			n.text(x)
+			n.css('top', 10);
+			n.css('left', x * 50);
+			$(document.body).append(n)
+		}
+		function send(cmd, data){
+			$.ajax({
+			  url: "http://localhost:8001/" + cmd,
+			  data: data,
+			});
+		}
+
+		$("#exit_button").click(function(){
+			send("exit")
+		})
+
+		var pressed = null;
+		var oldEvent;
+		
+		$(".dot").mousedown(function (event){
+			console.log('tralala')
+			pressed = this;
+			oldEvent = event;
+		})
+		
+		var old_time = 0
+
+		function update(){
+			var locs = {};
+			$(".dot").each(function (){
+				var offset = $(this).offset()
+				locs[$(this).text()] = [Math.round(offset.left/window.innerWidth * 10000) / 10000, Math.round(offset.top/window.innerHeight * 10000) / 10000]
+			})
+			time = new Date().getTime()
+			if (time > old_time + 50){
+				send("location", JSON.stringify(locs))
+				old_time = time
+			}
+		}
+
+		$(window).mousemove(function(event){
+			if (pressed){
+				pressed.style.left = event.clientX - oldEvent.offsetX;
+				pressed.style.top = event.clientY - oldEvent.offsetY;
+				update();
+			}
+		})
+		$(window).resize(update)
+
+		$(window).mouseup(function(){
+			pressed = null;
+		})
+	})
+</script>
+<body>
+</body>
+</html>
