@@ -6,6 +6,7 @@ import collections
 from statistics import median
 from math import ceil
 from collections import defaultdict
+from functools import partial
 
 params = cv2.SimpleBlobDetector_Params()
 params.minThreshold = 20
@@ -33,14 +34,7 @@ def keypoint_distance(points):
     return sum(dist(a.pt, b.pt) + abs(a.size - b.size) for a, b in pairwise(points))
 
 def bucketize(a, set_lengths=3, required_sets=3):
-    return ((b,) for b in chain.from_iterable(repeat(a, required_sets)))
-    sets = [set() for _ in range(ceil(len(a) / set_lengths * required_sets))]
-    for element in chain.from_iterable(repeat(a, required_sets)):
-        for s in sets:
-            if len(s) < set_lengths and not element in s:
-                s.add(element)
-                break
-    return (tuple(s) for s in sets)
+    return ([b] for b in chain.from_iterable(repeat(a, required_sets)))
 
 def find_locations(display, camera, points, repeats=3):
     display.ctx_main.set_source_rgb(0,0,0)
@@ -52,15 +46,30 @@ def find_locations(display, camera, points, repeats=3):
 
     keypoints = collections.defaultdict(set)
 
-    all_imgs = []
     point_is_on = defaultdict(lambda: False)
     ret, prev_img = camera.read()
+    all_imgs = [prev_img]
+    def add_keypoints(a, b):
+        diff = cv2.absdiff(a, b)
+        kp = detector.detect(diff)
+        if len(kp) >= len(point_set):
+            for point in point_set:
+                keypoints[point].add(tuple(kp))
 
+    job = None
     for point_set in bucketize(points, required_sets=repeats):
         for x,y in point_set:
             display.draw_point(x,y, color=(0,0,0) if point_is_on[x,y] else (1,1,1), immediately=True)
             point_is_on[x,y] = not point_is_on[x,y]
         
+        if job:
+            job()
+        else:
+            camera.read()
+            camera.read()
+        camera.read()
+        camera.read()
+        camera.read()
         camera.read()
         camera.read()
         camera.read()
@@ -68,21 +77,17 @@ def find_locations(display, camera, points, repeats=3):
         camera.read()
         ret, img = camera.read()
         all_imgs.append(img)
-
-        diff = np.abs(img.astype(np.int16) - prev_img.astype(np.int16))
-        kp = detector.detect(diff.astype(np.uint8))
-        if len(kp) >= len(point_set):
-            for point in point_set:
-                keypoints[point].add(tuple(kp))
+        job = partial(add_keypoints, img, prev_img)
         prev_img = img
-
-    # for idx, img in enumerate(all_imgs):
-    #     cv2.imwrite("basic-test-{}.png".format(idx), img)
+    job()
+    for idx, img in enumerate(all_imgs):
+        cv2.imwrite("basic-test-{}.png".format(idx), img)
 
     real_locations = {}
     for pt, potential_keypoints in keypoints.items():
         # idx used as tie breaker
         *_, kpts = min((keypoint_distance(points), idx, points) for idx, points in enumerate(product(*potential_keypoints)))
+        print([(int(k.pt[0]), int(k.pt[1])) for k in kpts])
         x = median(p.pt[0] for p in kpts)
         y = median(p.pt[1] for p in kpts)
         size = median(p.size for p in kpts)
