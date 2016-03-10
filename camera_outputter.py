@@ -3,10 +3,9 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("-c", "--camera", help="which camera to use", type=int, default=0)
 parser.add_argument("-f", "--fb_path", help="what framebuffer to use", default='/dev/fb0')
-parser.add_argument('-v', '--print_image_data', action='store_true')
-parser.add_argument('--imlazy')
-parser.add_argument('flags', nargs='*',
- 		                 help='a flag for opencv')
+parser.add_argument('-v', '--display_info', help="for each image captured, display information about the frame", action='store_true')
+parser.add_argument('--imlazy', metavar="VAR_NAME", help="output code to set the given flags")
+parser.add_argument('flags', nargs='*', metavar="FLAG", help='send any number of flags to open cv as FLAG:VALUE pairs')
 
 args = parser.parse_args()
 
@@ -49,7 +48,7 @@ for flag in args.flags:
 while True:
 	ret, img = cam.read()
 	width, height, depth = img.shape
-	if args.print_image_data:
+	if args.display_info:
 		print(width, height, depth)
 	img = numpy.append(img.transpose((2,0,1)), numpy.zeros((width,height)).astype(numpy.uint8)).reshape((4, width, height)).transpose(1,2,0)
 	img = img.astype(numpy.uint8).flatten()
