@@ -6,17 +6,21 @@ import collections
 from statistics import median
 from math import ceil
 from functools import partial
+import time
 
 params = cv2.SimpleBlobDetector_Params()
-params.minThreshold = 20
-params.maxThreshold = 255
+params.minThreshold = 40
 params.filterByArea = True
-params.filterByCircularity = True
-params.minCircularity = 0.4
 params.filterByColor = True
 params.blobColor = 0xFF
-params.minArea = 50
-params.maxArea = 500
+params.minArea = 5
+params.filterByConvexity = True
+params.minConvexity = 0
+params.maxConvexity = 1
+params.filterByCircularity = True
+params.minCircularity = 0
+params.maxCircularity = 1
+# params.maxArea = 100
 detector = cv2.SimpleBlobDetector_create(params)
 
 
@@ -42,25 +46,31 @@ def find_locations(display, camera, points, repeats=3):
     keypoints = {point:[] for point in points}
     try_index = 0
     ret, prev_img = camera.read()
-    while min(len(a) for k, a in keypoints.items()) < 3:
+
+    while min(len(a) for k, a in keypoints.items()) < 3:    
+        print(keypoints)
         if try_index > 6:
             raise ValueError("Cant find point")
 
         for point in points:
             display.draw_point(point, (1,1,1) if try_index % 2 == 0 else (0,0,0))
 
+            # time.sleep(0.1)
             # delay needed here
             ret, img = camera.read()
+            ret, img = camera.read()
+            ret, img = camera.read()
+            ret, img = camera.read()
             diff = cv2.absdiff(img, prev_img)
-            kp = detector.detect(diff)
-            if len(kp) >= 1:
-                for point in point_set:
-                    keypoints[point].append(kp)
+            kps = detector.detect(diff)
+            if len(kps) >= 1:
+                keypoints[point].append(kps)
             prev_img = img
 
         try_index += 1
 
     real_locations = {}
+
     for pt, potential_keypoints in keypoints.items():
         # idx used as tie breaker
         distance, idx, kpts = min((keypoint_distance(points), idx, points) for idx, points in enumerate(product(*potential_keypoints)))

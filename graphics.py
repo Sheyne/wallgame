@@ -1,6 +1,7 @@
 import numpy as np
 import cairocffi as cairo
 from cairotft import linuxfb
+from math import pi
 
 def rect_inset(rect, amt):
     rect = np.array(rect)
