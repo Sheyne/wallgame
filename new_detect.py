@@ -7,6 +7,9 @@ from statistics import median
 from math import ceil
 from functools import partial
 import time
+from graphics import rect_inset, rect_corners
+import numpy as np
+
 
 params = cv2.SimpleBlobDetector_Params()
 params.minThreshold = 40
@@ -48,7 +51,6 @@ def find_locations(display, camera, points, repeats=3):
     ret, prev_img = camera.read()
 
     while min(len(a) for k, a in keypoints.items()) < 3:    
-        print(keypoints)
         if try_index > 6:
             raise ValueError("Cant find point")
 
@@ -82,6 +84,21 @@ def find_locations(display, camera, points, repeats=3):
         real_locations[pt] = ((x,y),size)
     return real_locations
 
+def get_projector_transform(display, camera, scale=1, invert=False):
+    frame = [(0,0), (display.width, display.height)]
+
+    points = rect_corners(rect_inset(frame, 15))
+    real_locations = find_locations(display, camera, points, 4)
+
+    camera_space = np.array([real_locations[point][0] for point in points],np.float32)
+
+    projector_space = np.array(points,np.float32)
+    projector_space *= scale
+
+    spaces = camera_space, projector_space
+    if invert:
+        spaces = reversed(spaces)
+    return cv2.getPerspectiveTransform(* spaces)
 
 
 
