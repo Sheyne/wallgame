@@ -2,6 +2,9 @@ from getchy import get_key
 import cv2
 import numpy as np
 import random
+import graphics
+import importlib
+importlib.reload(graphics)
 
 def magic_function(points, trans, buff, display, camera, g=None):
     def move(k, point, mul=[5]):
@@ -66,6 +69,16 @@ def magic_function(points, trans, buff, display, camera, g=None):
     edit(points)
     random.shuffle(points)
     real_locations = cv2.perspectiveTransform(np.array([points], dtype=np.float32), trans)[0]
+    # real_locations *= 0.1
+    real_locations = real_locations.astype(int)
+    window = graphics.Window(display)
+
+    dots = [graphics.Dot(l, text=str(idx)) for idx, l in enumerate(points)]
+    for dot in dots:
+        window.helpers.add(dot)
+
+    timer = graphics.Label((5, 150), font_size=120)
+    window.helpers.add(timer)
 
     masks = [(slice(y-6, y+6), slice(x-6, x+6)) for x, y in real_locations]
 
@@ -75,12 +88,13 @@ def magic_function(points, trans, buff, display, camera, g=None):
     get_an_image()
     get_an_image()
     get_an_image()
-    explode_frame = {}
+    cv2.imwrite("sheyne.png", get_an_image())
     last_dot_touched = None
     last_dot_touched = -1
     prev = get_an_image()
     import time
-    last_time = time.time()
+    start_time = time.time()
+
     while True:
         img = get_an_image()
         diff = cv2.absdiff(img, prev)
@@ -98,34 +112,19 @@ def magic_function(points, trans, buff, display, camera, g=None):
             if score > 8:
                 if last_dot_touched == None:
                     hit.add(idx)
-                    explode_frame[idx] = 0
+                    dots[idx].hit()
                 else: 
                     if last_dot_touched + 1 == idx:
                         hit.add(idx)
-                        explode_frame[idx] = 0
+                        dots[idx].hit()
                         last_dot_touched += 1
             if score > 3:
                 candidates.add(idx)
 
-        buff.blank()
-        buff.context.move_to(5, 150)
-        buff.context.set_font_size(120)
-        buff.context.set_source_rgb(1,1,1)
-        buff.context.show_text("{:.2f}".format(time.time() - last_time))
-
-        for idx, point in enumerate(points):
-            color = (1,1,1) if idx in hit else (0.2,0.2,0.3)
-            if last_dot_touched + 1 == idx:
-                color = (0,0,1)
-            buff.draw_point(point, color)
-            if last_dot_touched != None:
-                buff.context.move_to(point[0] - 10, point[1] + 12)
-                buff.context.set_font_size(30)
-                buff.context.set_source_rgb(*((0,0,0) if idx in hit else (1,1,1)))
-                buff.context.show_text(str(idx))
-
-        display.draw_display(buff)
+        timer.text = "{:.1f}".format(time.time() - start_time)
+        window.draw()
 
         if len(hit) == len(points):
-            time.sleep(1.5)
+            for x in range(100):
+                window.draw()
             break

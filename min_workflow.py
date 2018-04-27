@@ -25,9 +25,12 @@ buff = Display(display)
 
 buff.blank()
 
-points = [[randint(200, 500), randint(200, 500)] for _ in range(10)]
+points = [[randint(50, display.width - 50), randint(50, display.height-50)] for _ in range(10)]
 
 trans = get_projector_transform(display, camera, scale=1, invert=True)
+# trans = np.array([[  1.00000000e+00,   1.27675648e-15,  -7.49400542e-15],
+#        [  3.77475828e-15,   1.00000000e+00,  -7.16093851e-15],
+#        [  2.48412402e-15,   1.02695630e-15,   1.00000000e+00]])
 
 import reloadable
 while True:
